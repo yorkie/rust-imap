@@ -1,0 +1,16 @@
+
+[package]
+name = "imap"
+version = "0.1.0"
+authors = [ "yorkiefixer@gmail.com" ]
+
+[[lib]]
+name = "imap"
+path = "src/imap.rs"
+
+[[bin]]
+name = "example"
+path = "example.rs"
+
+[dependencies.openssl]
+git = "https://github.com/sfackler/rust-openssl.git"
