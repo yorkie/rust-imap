@@ -22,6 +22,7 @@ pub struct IMAPStream {
   socket: Option<TcpStream>,
   pub connected: bool,
   pub authenticated: bool,
+  tag: uint,
 }
 
 impl IMAPStream {
@@ -33,7 +34,8 @@ impl IMAPStream {
       port: port,
       socket: None,
       connected: false,
-      authenticated: false
+      authenticated: false,
+      tag: 1
     }
   }
   
@@ -42,8 +44,8 @@ impl IMAPStream {
     match TcpStream::connect(self.host, self.port) {
       Ok(stream) => {
         self.connected = true;
-        self.socket = Some(stream);
-        match read_to_end(self.socket.unwrap()) {
+        self.socket = Some(stream.clone());
+        match read_response(self.socket.get_mut_ref()) {
           Ok(res) => return,
           Err(e) => drop(stream),
         }
@@ -57,6 +59,17 @@ impl IMAPStream {
     if !self.connected {
       fail!("connect() required");
     }
+
+    write!(self.socket.get_mut_ref(),
+      "x{} login {} {}\r\n", self.tag, username, password);
+    self.tag += 1;
+    match read_response(self.socket.get_mut_ref()) {
+      Ok(res) => {
+        self.authenticated = true;
+        println!("response: {}", res);
+      },
+      Err(e) => println!("error"),
+    }
   }
 
   // authenticate via username and accessToken
@@ -64,12 +77,30 @@ impl IMAPStream {
     if !self.connected {
       fail!("connect() required");
     }
+    // TODO(Yorkie)
+  }
+
+  // select folder
+  pub fn select(&mut self, folder: &str) {
+    if !self.authenticated {
+      fail!("login()/auth() required");
+    }
+
+    write!(self.socket.get_mut_ref(),
+      "x{} select {}\r\n", self.tag, folder);
+    self.tag += 1;
+    match read_response(self.socket.get_mut_ref()) {
+      Ok(res) => {
+        println!("response: {}", res);
+      },
+      Err(e) => println!("error"),
+    }
   }
 
 }
 
 #[inline]
-fn read_to_end(mut stream: TcpStream) -> Result<String, Vec<u8>> {
+fn read_response(stream: &mut TcpStream) -> Result<String, Vec<u8>> {
   let mut bufs: Vec<u8> = Vec::new();
   let mut tryClose = false;
   loop {
@@ -83,7 +114,13 @@ fn read_to_end(mut stream: TcpStream) -> Result<String, Vec<u8>> {
     }
     tryClose = buf[0] == 0x0d;
   }
-  String::from_utf8(bufs)
+  
+  match String::from_utf8(bufs) {
+    Ok(res) => {
+      return Ok(res);
+    },
+    Err(vec) => Err(vec),
+  }
 }
 
 #[test]
