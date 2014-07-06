@@ -59,6 +59,13 @@ impl IMAPStream {
     }
   }
 
+  // authenticate via username and accessToken
+  pub fn auth(&mut self, username: &str, token: &str) {
+    if !self.connected {
+      fail!("connect() required");
+    }
+  }
+
 }
 
 #[inline]
