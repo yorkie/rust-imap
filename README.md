@@ -1,5 +1,5 @@
 
-imap.rs
+rust-imap
 ================
 IMAP client for Rust
 
