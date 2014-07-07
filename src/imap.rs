@@ -6,6 +6,7 @@ extern crate openssl;
 extern crate collections;
 extern crate core;
 
+use std::str;
 use std::io::net::ip::SocketAddr;
 use std::io::net::tcp::TcpStream;
 use std::io::IoResult;
@@ -124,20 +125,22 @@ impl IMAPResponse {
 
   #[inline]
   fn add_line(&mut self, line: IMAPLine) {
+    let mut line_raw_u8 = line.raw.clone();
     self.lines.push(line);
-    // self.buffer.append(line.raw);
+    self.buffer.push_str(
+      str::from_utf8(line_raw_u8.as_bytes()).unwrap());
   }
 
 }
 
 struct IMAPLine {
   tagged: bool,
-  raw: String,
+  raw: Box<String>,
 }
 
 impl IMAPLine {
   fn new(bufs: String) -> IMAPLine {
-    let mut line = IMAPLine { tagged: false, raw: bufs };
+    let mut line = IMAPLine { tagged: false, raw: box bufs };
     let mut cursor = 0i;
     while line.raw.len() > 0 {
       if cursor == 0 {
@@ -151,7 +154,7 @@ impl IMAPLine {
 
 #[inline]
 fn read_response(stream: &mut TcpStream) -> Result<String, Vec<u8>> {
-  let mut response = IMAPResponse::new();
+  let mut response = box IMAPResponse::new();
   let mut bufs: Vec<u8> = Vec::new();
   let mut tryClose = false;
   loop {
