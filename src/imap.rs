@@ -100,6 +100,16 @@ impl IMAPStream {
     }
   }
 
+  // logout
+  pub fn logout(&mut self) {
+    if !self.authenticated {
+      fail!("connect() required");
+    }
+    write!(self.socket.get_mut_ref(),
+      "x{} logout\r\n", self.tag);
+    self.tag = 1;
+  }
+
 }
 
 //
