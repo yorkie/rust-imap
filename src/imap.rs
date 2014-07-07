@@ -135,16 +135,16 @@ impl IMAPResponse {
 
 struct IMAPLine {
   tagged: bool,
-  raw: Box<String>,
+  raw: String,
 }
 
 impl IMAPLine {
-  fn new(bufs: String) -> IMAPLine {
+  fn new(mut bufs: String) -> IMAPLine {
     println!("line: {}", bufs);
-    let mut line = IMAPLine { tagged: false, raw: box bufs };
+    let mut line = IMAPLine { tagged: false, raw: bufs.clone() };
     let mut cursor = 0i;
-    while line.raw.len() > 0 {
-      let cur_ch = line.raw.shift_char().unwrap();
+    while bufs.len() > 0 {
+      let cur_ch = bufs.shift_char().unwrap();
       if cursor == 0 {
         line.tagged = cur_ch != '*';
       }
