@@ -48,9 +48,9 @@ impl IMAPStream {
       Ok(stream) => {
         self.connected = true;
         self.socket = Some(stream.clone());
-        match read_response(self.socket.get_mut_ref()) {
+        match read_response(self.socket.get_mut_ref(), true) {
           Ok(res) => return,
-          Err(e) => drop(stream),
+          Err(e) => fail!("failed connected"),
         }
       },
       Err(e) => println!("Failed to connect"),
@@ -66,7 +66,7 @@ impl IMAPStream {
     write!(self.socket.get_mut_ref(),
       "x{} login {} {}\r\n", self.tag, username, password);
     self.tag += 1;
-    match read_response(self.socket.get_mut_ref()) {
+    match read_response(self.socket.get_mut_ref(), false) {
       Ok(res) => {
         self.authenticated = true;
         println!("response: {}", res);
@@ -92,7 +92,7 @@ impl IMAPStream {
     write!(self.socket.get_mut_ref(),
       "x{} select {}\r\n", self.tag, folder);
     self.tag += 1;
-    match read_response(self.socket.get_mut_ref()) {
+    match read_response(self.socket.get_mut_ref(), false) {
       Ok(res) => {
         println!("response: {}", res);
       },
@@ -140,11 +140,13 @@ struct IMAPLine {
 
 impl IMAPLine {
   fn new(bufs: String) -> IMAPLine {
+    println!("line: {}", bufs);
     let mut line = IMAPLine { tagged: false, raw: box bufs };
     let mut cursor = 0i;
     while line.raw.len() > 0 {
+      let cur_ch = line.raw.shift_char().unwrap();
       if cursor == 0 {
-        line.tagged = line.raw.shift_char().unwrap() != '*';
+        line.tagged = cur_ch != '*';
       }
       cursor += 1;
     }
@@ -153,7 +155,7 @@ impl IMAPLine {
 }
 
 #[inline]
-fn read_response(stream: &mut TcpStream) -> Result<String, Vec<u8>> {
+fn read_response(stream: &mut TcpStream, is_greeting: bool) -> Result<String, Vec<u8>> {
   let mut response = box IMAPResponse::new();
   let mut bufs: Vec<u8> = Vec::new();
   let mut tryClose = false;
@@ -164,11 +166,22 @@ fn read_response(stream: &mut TcpStream) -> Result<String, Vec<u8>> {
 
     // check CLRL firstly, if yes then break
     if tryClose && buf[0] == 0x0a {
-      match String::from_utf8(bufs) {
-        Ok(res) => response.add_line(IMAPLine::new(res)),
+      match String::from_utf8(bufs.clone()) {
+        Ok(res) => {
+          let line = IMAPLine::new(res);
+          let istagged = line.tagged.clone();
+          response.add_line(line);
+
+          // greeting or tagged should end this response
+          if is_greeting || istagged {
+            return Ok(response.buffer);
+          } else {
+            // empty bufs
+            bufs = Vec::new();
+          }
+        },
         Err(e) => return Err(e),
       }
-      break;
     }
     tryClose = buf[0] == 0x0d;
   }
