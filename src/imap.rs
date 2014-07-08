@@ -135,6 +135,7 @@ struct IMAPResponse {
   buffer: String,
   lines: Vec<IMAPLine>,
   tagged: bool,
+  completed: bool,
 }
 
 impl IMAPResponse {
@@ -145,12 +146,14 @@ impl IMAPResponse {
       buffer: String::new(),
       lines: Vec::new(),
       tagged: false,
+      completed: false,
     }
   }
 
   #[inline]
-  fn add_line(&mut self, line: IMAPLine) {
+  fn add_line(&mut self, mut line: IMAPLine) {
     let mut line_raw_u8 = line.raw.clone();
+    self.completed = line.is_complete();
     self.lines.push(line);
     self.buffer.push_str(
       str::from_utf8(line_raw_u8.as_bytes()).unwrap());
@@ -200,10 +203,8 @@ fn read_response(stream: &mut TcpStream, cmd: IMAPCommand) -> Result<String, Vec
       match String::from_utf8(bufs.clone()) {
         Ok(res) => {
           let mut line = IMAPLine::new(res, cmd);
-          let is_complete = line.is_complete();
           response.add_line(line);
-
-          if is_complete {
+          if response.completed {
             return Ok(response.buffer);
           } else {
             bufs = Vec::new();
