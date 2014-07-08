@@ -2,10 +2,14 @@
 #![crate_id = "imap#0.0.1"]
 #![crate_type = "lib"]
 #![feature(struct_variant)]
+#![feature(phase)]
 
 extern crate openssl;
 extern crate collections;
 extern crate core;
+extern crate regex;
+
+#[phase(pluge)] extern crate regex_macros;
 
 use std::str;
 use std::io::net::ip::SocketAddr;
@@ -14,6 +18,7 @@ use std::io::IoResult;
 use openssl::ssl::{SslStream, SslContext, Sslv23};
 use collections::string::String;
 use core::char;
+use regex::Regex;
 
 pub enum NetworkStream {
   NormalStream(TcpStream),
@@ -36,7 +41,7 @@ pub struct IMAPStream {
   pub connected: bool,
   pub authenticated: bool,
   tag: uint,
-  last_command: IMAPCommand,
+  last_command: IMAPCommand
 }
 
 impl IMAPStream {
@@ -131,6 +136,15 @@ impl IMAPStream {
 // Parsing Response
 //
 
+enum IMAPResponseResult {
+  OK, NO, BAD
+}
+
+pub struct IMAPFolderResponse {
+  exists: int,
+  recent: int,
+}
+
 struct IMAPResponse {
   buffer: String,
   lines: Vec<IMAPLine>,
@@ -157,6 +171,45 @@ impl IMAPResponse {
     self.lines.push(line);
     self.buffer.push_str(
       str::from_utf8(line_raw_u8.as_bytes()).unwrap());
+
+    if self.completed {
+      self.parse();
+    }
+  }
+
+  #[inline]
+  fn parse(&mut self) {
+    match self.lines.as_slice()[0].command {
+      Greeting => self.parse_greeting(),
+      Select => self.parse_select(),
+      _ => println!("un impl -ed"),
+    }
+  }
+
+  fn parse_greeting(&mut self) {
+    // TODO
+  }
+
+  fn parse_select(&mut self) {
+    for line in self.lines.iter() {
+      let caps;
+      let text = str::from_utf8(line.raw.as_bytes()).unwrap();
+      let re1 = match Regex::new("([0-9]+) (EXISTS|RECENT)") {
+        // TODO(Yorkie): use regex! replace this.
+        Ok(re) => re,
+        Err(err) => fail!("{}", err),
+      };
+      caps = match re1.captures(text) {
+        Some(caps) => {
+          match caps.at(2) {
+            "EXISTS" => println!("exists: {}", caps.at(1)),
+            "RECENT" => println!("recent: {}", caps.at(1)),
+            _ => println!("dont")
+          }
+        },
+        None => println!("haha!")
+      }
+    }
   }
 
 }
