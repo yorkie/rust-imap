@@ -13,4 +13,4 @@ name = "example"
 path = "example.rs"
 
 [dependencies.openssl]
-git = "https://github.com/sfackler/rust-openssl.git"
+git = "https://github.com/yorkie/rust-imap.git"
