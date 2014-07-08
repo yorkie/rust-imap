@@ -27,7 +27,6 @@ pub enum IMAPCommand {
   Authenticate,
   Select,
   Fetch,
-  List,
 }
 
 pub struct IMAPStream {
@@ -61,7 +60,7 @@ impl IMAPStream {
       Ok(stream) => {
         self.connected = true;
         self.socket = Some(stream.clone());
-        match read_response(self.socket.get_mut_ref(), true) {
+        match read_response(self.socket.get_mut_ref(), self.last_command) {
           Ok(res) => return,
           Err(e) => fail!("failed connected"),
         }
@@ -79,7 +78,8 @@ impl IMAPStream {
     write!(self.socket.get_mut_ref(),
       "x{} login {} {}\r\n", self.tag, username, password);
     self.tag += 1;
-    match read_response(self.socket.get_mut_ref(), false) {
+    self.last_command = Login;
+    match read_response(self.socket.get_mut_ref(), self.last_command) {
       Ok(res) => {
         self.authenticated = true;
         println!("response: {}", res);
@@ -105,7 +105,8 @@ impl IMAPStream {
     write!(self.socket.get_mut_ref(),
       "x{} select {}\r\n", self.tag, folder);
     self.tag += 1;
-    match read_response(self.socket.get_mut_ref(), false) {
+    self.last_command = Select;
+    match read_response(self.socket.get_mut_ref(), self.last_command) {
       Ok(res) => {
         println!("response: {}", res);
       },
@@ -121,6 +122,7 @@ impl IMAPStream {
     write!(self.socket.get_mut_ref(),
       "x{} logout\r\n", self.tag);
     self.tag = 1;
+    self.last_command = Logout;
   }
 
 }
@@ -177,7 +179,7 @@ impl IMAPLine {
 }
 
 #[inline]
-fn read_response(stream: &mut TcpStream, is_greeting: bool) -> Result<String, Vec<u8>> {
+fn read_response(stream: &mut TcpStream, command: IMAPCommand) -> Result<String, Vec<u8>> {
   let mut response = box IMAPResponse::new();
   let mut bufs: Vec<u8> = Vec::new();
   let mut tryClose = false;
@@ -195,11 +197,16 @@ fn read_response(stream: &mut TcpStream, is_greeting: bool) -> Result<String, Ve
           response.add_line(line);
 
           // greeting or tagged should end this response
-          if is_greeting || istagged {
-            return Ok(response.buffer);
-          } else {
-            // empty bufs
-            bufs = Vec::new();
+          match command {
+            Greeting => return Ok(response.buffer),
+            _ => {
+              if (istagged) {
+                return Ok(response.buffer);
+              } else {
+                // empty the bufs for next
+                bufs = Vec::new();
+              }
+            }
           }
         },
         Err(e) => return Err(e),
