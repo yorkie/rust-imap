@@ -159,13 +159,14 @@ impl IMAPResponse {
 }
 
 struct IMAPLine {
+  command: IMAPCommand,
   tagged: bool,
   raw: String,
 }
 
 impl IMAPLine {
-  fn new(mut bufs: String) -> IMAPLine {
-    let mut line = IMAPLine { tagged: false, raw: bufs.clone() };
+  fn new(mut bufs: String, cmd: IMAPCommand) -> IMAPLine {
+    let mut line = IMAPLine { command: cmd, tagged: false, raw: bufs.clone() };
     let mut cursor = 0i;
     while bufs.len() > 0 {
       let cur_ch = bufs.shift_char().unwrap();
@@ -176,10 +177,16 @@ impl IMAPLine {
     }
     return line;
   }
+  fn is_complete(&mut self) -> bool {
+    match self.command {
+      Greeting => true,
+      _ => self.tagged,
+    }
+  }
 }
 
 #[inline]
-fn read_response(stream: &mut TcpStream, command: IMAPCommand) -> Result<String, Vec<u8>> {
+fn read_response(stream: &mut TcpStream, cmd: IMAPCommand) -> Result<String, Vec<u8>> {
   let mut response = box IMAPResponse::new();
   let mut bufs: Vec<u8> = Vec::new();
   let mut tryClose = false;
@@ -192,21 +199,14 @@ fn read_response(stream: &mut TcpStream, command: IMAPCommand) -> Result<String,
     if tryClose && buf[0] == 0x0a {
       match String::from_utf8(bufs.clone()) {
         Ok(res) => {
-          let line = IMAPLine::new(res);
-          let istagged = line.tagged.clone();
+          let mut line = IMAPLine::new(res, cmd);
+          let is_complete = line.is_complete();
           response.add_line(line);
 
-          // greeting or tagged should end this response
-          match command {
-            Greeting => return Ok(response.buffer),
-            _ => {
-              if (istagged) {
-                return Ok(response.buffer);
-              } else {
-                // empty the bufs for next
-                bufs = Vec::new();
-              }
-            }
+          if is_complete {
+            return Ok(response.buffer);
+          } else {
+            bufs = Vec::new();
           }
         },
         Err(e) => return Err(e),
