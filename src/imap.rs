@@ -1,6 +1,7 @@
 
 #![crate_id = "imap#0.0.1"]
 #![crate_type = "lib"]
+#![feature(struct_variant)]
 
 extern crate openssl;
 extern crate collections;
@@ -19,6 +20,16 @@ pub enum NetworkStream {
   SslProtectedStream(SslStream<TcpStream>)
 }
 
+pub enum IMAPCommand {
+  Greeting,
+  Login,
+  Logout,
+  Authenticate,
+  Select,
+  Fetch,
+  List,
+}
+
 pub struct IMAPStream {
   pub host: &'static str,
   pub port: u16,
@@ -26,6 +37,7 @@ pub struct IMAPStream {
   pub connected: bool,
   pub authenticated: bool,
   tag: uint,
+  last_command: IMAPCommand,
 }
 
 impl IMAPStream {
@@ -38,7 +50,8 @@ impl IMAPStream {
       socket: None,
       connected: false,
       authenticated: false,
-      tag: 1
+      tag: 1,
+      last_command: Greeting,
     }
   }
   
@@ -53,7 +66,7 @@ impl IMAPStream {
           Err(e) => fail!("failed connected"),
         }
       },
-      Err(e) => println!("Failed to connect"),
+      Err(e) => println!("failed to connect"),
     }
   }
 
@@ -150,7 +163,6 @@ struct IMAPLine {
 
 impl IMAPLine {
   fn new(mut bufs: String) -> IMAPLine {
-    println!("line: {}", bufs);
     let mut line = IMAPLine { tagged: false, raw: bufs.clone() };
     let mut cursor = 0i;
     while bufs.len() > 0 {
