@@ -192,18 +192,37 @@ impl IMAPResponse {
 
   fn parse_select(&mut self) {
     for line in self.lines.iter() {
-      let caps;
+      // convert String to str
       let text = str::from_utf8(line.raw.as_bytes()).unwrap();
+      
+      // parse recent/exists
       let re1 = match Regex::new("([0-9]+) (EXISTS|RECENT)") {
         // TODO(Yorkie): use regex! replace this.
         Ok(re) => re,
         Err(err) => fail!("{}", err),
       };
-      caps = match re1.captures(text) {
+      match re1.captures(text) {
         Some(caps) => {
           match caps.at(2) {
             "EXISTS" => println!("exists: {}", caps.at(1)),
             "RECENT" => println!("recent: {}", caps.at(1)),
+            _ => println!("dont")
+          }
+        },
+        None => println!("haha!")
+      }
+
+      // parse uidvaildity/uidnext
+      let re2 = match Regex::new("(UIDVALIDITY|UIDNEXT) ([0-9]+)") {
+        // TODO(Yorkie): use regex! replace this.
+        Ok(re) => re,
+        Err(err) => fail!("{}", err),
+      };
+      match re2.captures(text) {
+        Some(caps) => {
+          match caps.at(1) {
+            "UIDVALIDITY" => println!("uid validity: {}", caps.at(2)),
+            "UIDNEXT"     => println!("uid next: {}", caps.at(2)),
             _ => println!("dont")
           }
         },
