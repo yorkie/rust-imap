@@ -194,9 +194,11 @@ impl IMAPResponse {
     for line in self.lines.iter() {
       // convert String to str
       let text = str::from_utf8(line.raw.as_bytes()).unwrap();
-      
+      let re1; 
+      let re2;
+
       // parse recent/exists
-      let re1 = match Regex::new("([0-9]+) (EXISTS|RECENT)") {
+      re1 = match Regex::new("([0-9]+) (EXISTS|RECENT)") {
         // TODO(Yorkie): use regex! replace this.
         Ok(re) => re,
         Err(err) => fail!("{}", err),
@@ -213,7 +215,7 @@ impl IMAPResponse {
       }
 
       // parse uidvaildity/uidnext
-      let re2 = match Regex::new("(UIDVALIDITY|UIDNEXT) ([0-9]+)") {
+      re2 = match Regex::new("(UIDVALIDITY|UIDNEXT) ([0-9]+)") {
         // TODO(Yorkie): use regex! replace this.
         Ok(re) => re,
         Err(err) => fail!("{}", err),
