@@ -65,7 +65,7 @@ impl IMAPStream {
       Ok(stream) => {
         self.connected = true;
         self.socket = Some(stream.clone());
-        match read_response(self.socket.get_mut_ref(), self.last_command) {
+        match read_response::<bool>(self.socket.get_mut_ref(), self.last_command) {
           Ok(res) => return,
           Err(e) => fail!("failed connected"),
         }
@@ -84,7 +84,7 @@ impl IMAPStream {
       "x{} login {} {}\r\n", self.tag, username, password);
     self.tag += 1;
     self.last_command = Login;
-    match read_response(self.socket.get_mut_ref(), self.last_command) {
+    match read_response::<bool>(self.socket.get_mut_ref(), self.last_command) {
       Ok(res) => {
         self.authenticated = true;
         println!("response: {}", res);
@@ -111,7 +111,7 @@ impl IMAPStream {
       "x{} select {}\r\n", self.tag, folder);
     self.tag += 1;
     self.last_command = Select;
-    match read_response(self.socket.get_mut_ref(), self.last_command) {
+    match read_response::<IMAPFolderResponse>(self.socket.get_mut_ref(), self.last_command) {
       Ok(res) => {
         println!("response: {}", res);
       },
@@ -136,31 +136,29 @@ impl IMAPStream {
 // Parsing Response
 //
 
-enum IMAPResponseResult {
-  OK, NO, BAD
-}
-
 pub struct IMAPFolderResponse {
   exists: int,
   recent: int,
 }
 
-struct IMAPResponse {
+struct IMAPResponse<T> {
   buffer: String,
   lines: Vec<IMAPLine>,
   tagged: bool,
   completed: bool,
+  ptr: *mut T
 }
 
-impl IMAPResponse {
+impl<T> IMAPResponse<T> {
 
   #[inline]
-  fn new() -> IMAPResponse {
+  fn new() -> IMAPResponse<T> {
     IMAPResponse {
       buffer: String::new(),
       lines: Vec::new(),
       tagged: false,
       completed: false,
+      ptr: false as *mut T,
     }
   }
 
@@ -232,7 +230,6 @@ impl IMAPResponse {
       }
     }
   }
-
 }
 
 struct IMAPLine {
@@ -263,10 +260,11 @@ impl IMAPLine {
 }
 
 #[inline]
-fn read_response(stream: &mut TcpStream, cmd: IMAPCommand) -> Result<String, Vec<u8>> {
-  let mut response = box IMAPResponse::new();
+fn read_response<T>(stream: &mut TcpStream, cmd: IMAPCommand) -> Result<String, Vec<u8>> {
+  let mut response = box IMAPResponse::<T>::new();
   let mut bufs: Vec<u8> = Vec::new();
   let mut tryClose = false;
+
   loop {
     let mut buf = [0];
     stream.read(buf);
