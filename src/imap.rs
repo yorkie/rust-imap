@@ -8,9 +8,11 @@ extern crate openssl;
 extern crate collections;
 extern crate core;
 extern crate regex;
+extern crate std;
 
 #[phase(pluge)] extern crate regex_macros;
 
+use std::int;
 use std::str;
 use std::io::net::ip::SocketAddr;
 use std::io::net::tcp::TcpStream;
@@ -65,7 +67,7 @@ impl IMAPStream {
       Ok(stream) => {
         self.connected = true;
         self.socket = Some(stream.clone());
-        match read_response::<bool>(self.socket.get_mut_ref(), self.last_command) {
+        match read_response(self.socket.get_mut_ref(), self.last_command) {
           Ok(res) => return,
           Err(e) => fail!("failed connected"),
         }
@@ -84,10 +86,10 @@ impl IMAPStream {
       "x{} login {} {}\r\n", self.tag, username, password);
     self.tag += 1;
     self.last_command = Login;
-    match read_response::<bool>(self.socket.get_mut_ref(), self.last_command) {
-      Ok(res) => {
+    match read_response(self.socket.get_mut_ref(), self.last_command) {
+      Ok(mut res) => {
         self.authenticated = true;
-        println!("response: {}", res);
+        // println!("response: {}", res.unwrap());
       },
       Err(e) => println!("error"),
     }
@@ -111,9 +113,9 @@ impl IMAPStream {
       "x{} select {}\r\n", self.tag, folder);
     self.tag += 1;
     self.last_command = Select;
-    match read_response::<IMAPFolderResponse>(self.socket.get_mut_ref(), self.last_command) {
+    match read_response(self.socket.get_mut_ref(), self.last_command) {
       Ok(res) => {
-        println!("response: {}", res);
+        println!("response: {}", res.buffer);
       },
       Err(e) => println!("error"),
     }
@@ -136,29 +138,34 @@ impl IMAPStream {
 // Parsing Response
 //
 
-pub struct IMAPFolderResponse {
-  exists: int,
-  recent: int,
+pub enum IMAPResult {
+  IMAPOk,
+  IMAPNo,
+  IMAPBad,
+  IMAPFolder {
+    recent: Option<int>,
+    exists: Option<int>,
+  }
 }
 
-struct IMAPResponse<T> {
+struct IMAPResponse {
   buffer: String,
   lines: Vec<IMAPLine>,
   tagged: bool,
   completed: bool,
-  ptr: *mut T
+  result: Option<IMAPResult>
 }
 
-impl<T> IMAPResponse<T> {
+impl IMAPResponse {
 
   #[inline]
-  fn new() -> IMAPResponse<T> {
+  fn new() -> IMAPResponse {
     IMAPResponse {
       buffer: String::new(),
       lines: Vec::new(),
       tagged: false,
       completed: false,
-      ptr: false as *mut T,
+      result: None
     }
   }
 
@@ -184,16 +191,19 @@ impl<T> IMAPResponse<T> {
     }
   }
 
+  #[inline]
   fn parse_greeting(&mut self) {
-    // TODO
+    self.result = Some(IMAPOk)
   }
 
   fn parse_select(&mut self) {
     for line in self.lines.iter() {
       // convert String to str
       let text = str::from_utf8(line.raw.as_bytes()).unwrap();
-      let re1; 
+      let re1;
       let re2;
+      let mut exists: Option<int> = None;
+      let mut recent: Option<int> = None;
 
       // parse recent/exists
       re1 = match Regex::new("([0-9]+) (EXISTS|RECENT)") {
@@ -204,8 +214,8 @@ impl<T> IMAPResponse<T> {
       match re1.captures(text) {
         Some(caps) => {
           match caps.at(2) {
-            "EXISTS" => println!("exists: {}", caps.at(1)),
-            "RECENT" => println!("recent: {}", caps.at(1)),
+            "EXISTS" => exists = int::parse_bytes(caps.at(1).as_bytes(), 10),
+            "RECENT" => recent = int::parse_bytes(caps.at(1).as_bytes(), 10),
             _ => println!("dont")
           }
         },
@@ -228,6 +238,12 @@ impl<T> IMAPResponse<T> {
         },
         None => println!("haha!")
       }
+
+      self.result = Some(IMAPFolder {
+        recent: recent,
+        exists: exists,
+      })
+
     }
   }
 }
@@ -260,8 +276,8 @@ impl IMAPLine {
 }
 
 #[inline]
-fn read_response<T>(stream: &mut TcpStream, cmd: IMAPCommand) -> Result<String, Vec<u8>> {
-  let mut response = box IMAPResponse::<T>::new();
+fn read_response(stream: &mut TcpStream, cmd: IMAPCommand) -> Result<Box<IMAPResponse>, Vec<u8>> {
+  let mut response = box IMAPResponse::new();
   let mut bufs: Vec<u8> = Vec::new();
   let mut tryClose = false;
 
@@ -277,7 +293,7 @@ fn read_response<T>(stream: &mut TcpStream, cmd: IMAPCommand) -> Result<String, 
           let mut line = IMAPLine::new(res, cmd);
           response.add_line(line);
           if response.completed {
-            return Ok(response.buffer);
+            return Ok(response);
           } else {
             bufs = Vec::new();
           }
@@ -287,7 +303,7 @@ fn read_response<T>(stream: &mut TcpStream, cmd: IMAPCommand) -> Result<String, 
     }
     tryClose = buf[0] == 0x0d;
   }
-  Ok(String::new())
+  Ok(response)
 }
 
 #[test]
