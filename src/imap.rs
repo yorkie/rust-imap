@@ -13,18 +13,18 @@ extern crate regex;
 
 use std::int;
 use std::str;
-use std::io::net::ip::SocketAddr;
+
+// use std::io::net::ip::SocketAddr;
 use std::io::net::tcp::TcpStream;
-use std::io::IoResult;
-use openssl::ssl::{SslStream, SslContext, Sslv23};
+// use std::io::IoResult;
+// use openssl::ssl::{SslStream, SslContext, Sslv23};
 use collections::string::String;
-use core::char;
 use regex::Regex;
 
-pub enum NetworkStream {
-  NormalStream(TcpStream),
-  SslProtectedStream(SslStream<TcpStream>)
-}
+// pub enum NetworkStream {
+//   NormalStream(TcpStream),
+//   SslProtectedStream(SslStream<TcpStream>)
+// }
 
 pub enum IMAPCommand {
   Greeting,
@@ -71,11 +71,11 @@ impl IMAPStream {
         self.connected = true;
         self.socket = Some(stream.clone());
         match read_response(self.socket.get_mut_ref(), self.last_command) {
-          Ok(res) => return,
-          Err(e) => fail!("failed connected"),
+          Ok(_) => return,
+          Err(e) => fail!("failed connected, {}", e),
         }
       },
-      Err(e) => println!("failed to connect"),
+      Err(e) => println!("failed to connect, {}", e),
     }
   }
 
@@ -90,21 +90,25 @@ impl IMAPStream {
     self.tag += 1;
     self.last_command = Login;
     match read_response(self.socket.get_mut_ref(), self.last_command) {
-      Ok(mut res) => {
-        self.authenticated = true;
-        // println!("response: {}", res.unwrap());
+      Ok(res) => {
+        match res.result.unwrap() {
+          IMAPOk => self.authenticated = true,
+          IMAPNo => self.authenticated = false,
+          IMAPBad => self.authenticated = false,
+          _ => fail!("error")
+        }
       },
-      Err(e) => println!("error"),
+      Err(e) => println!("error: {}", e)
     }
   }
 
   // authenticate via username and accessToken
-  pub fn auth(&mut self, username: &str, token: &str) {
-    if !self.connected {
-      fail!("connect() required");
-    }
-    // TODO(Yorkie)
-  }
+  // pub fn auth(&mut self, username: &str, token: &str) {
+  //   if !self.connected {
+  //     fail!("connect() required");
+  //   }
+  //   // TODO(Yorkie)
+  // }
 
   // select folder
   pub fn select(&mut self, folder: &str) {
@@ -130,7 +134,7 @@ impl IMAPStream {
           _ => fail!("error"),
         }
       },
-      Err(e) => println!("error"),
+      Err(e) => println!("error: {}", e)
     }
   }
 
@@ -173,7 +177,6 @@ struct Folder {
 struct IMAPResponse {
   buffer: String,
   lines: Vec<IMAPLine>,
-  tagged: bool,
   completed: bool,
   result: Option<IMAPResult>
 }
@@ -185,7 +188,6 @@ impl IMAPResponse {
     IMAPResponse {
       buffer: String::new(),
       lines: Vec::new(),
-      tagged: false,
       completed: false,
       result: None
     }
@@ -193,7 +195,7 @@ impl IMAPResponse {
 
   #[inline]
   fn add_line(&mut self, mut line: IMAPLine) {
-    let mut line_raw_u8 = line.raw.clone();
+    let line_raw_u8 = line.raw.clone();
     self.completed = line.is_complete();
     self.lines.push(line);
     self.buffer.push_str(
@@ -313,7 +315,7 @@ fn read_response(stream: &mut TcpStream, cmd: IMAPCommand) -> Result<Box<IMAPRes
     if tryClose && buf[0] == 0x0a {
       match String::from_utf8(bufs.clone()) {
         Ok(res) => {
-          let mut line = IMAPLine::new(res, cmd);
+          let line = IMAPLine::new(res, cmd);
           response.add_line(line);
           if response.completed {
             return Ok(response);
@@ -326,7 +328,6 @@ fn read_response(stream: &mut TcpStream, cmd: IMAPCommand) -> Result<Box<IMAPRes
     }
     tryClose = buf[0] == 0x0d;
   }
-  Ok(response)
 }
 
 #[test]
