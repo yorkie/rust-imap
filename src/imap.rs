@@ -46,6 +46,10 @@ pub struct IMAPStream {
   last_command: IMAPCommand
 }
 
+fn noop() {
+  // nothing
+}
+
 impl IMAPStream {
   
   #[inline]
@@ -115,7 +119,17 @@ impl IMAPStream {
     self.last_command = Select;
     match read_response(self.socket.get_mut_ref(), self.last_command) {
       Ok(res) => {
-        println!("response: {}", res.buffer);
+        match res.result.unwrap() {
+          IMAPFolder {
+            exists: exists,
+            recent: recent,
+            uidvaildity: uidvaildity,
+            uidnext: uidnext } => {
+            println!("exists:{}, recent:{}, uidvaildity:{}, uidnext:{}", 
+              exists, recent, uidvaildity, uidnext);
+          },
+          _ => fail!("error"),
+        }
       },
       Err(e) => println!("error"),
     }
@@ -143,8 +157,10 @@ pub enum IMAPResult {
   IMAPNo,
   IMAPBad,
   IMAPFolder {
-    recent: Option<int>,
-    exists: Option<int>,
+    recent: int,
+    exists: int,
+    uidvaildity: int,
+    uidnext: int,
   }
 }
 
@@ -197,13 +213,19 @@ impl IMAPResponse {
   }
 
   fn parse_select(&mut self) {
+
+    struct Folder {
+      exists: int,
+      recent: int,
+      uidvaildity: int,
+      uidnext: int,
+    }
+    let mut res = Folder { exists:0, recent:0, uidvaildity:0, uidnext:0 };
+
     for line in self.lines.iter() {
-      // convert String to str
       let text = str::from_utf8(line.raw.as_bytes()).unwrap();
       let re1;
       let re2;
-      let mut exists: Option<int> = None;
-      let mut recent: Option<int> = None;
 
       // parse recent/exists
       re1 = match Regex::new("([0-9]+) (EXISTS|RECENT)") {
@@ -214,12 +236,12 @@ impl IMAPResponse {
       match re1.captures(text) {
         Some(caps) => {
           match caps.at(2) {
-            "EXISTS" => exists = int::parse_bytes(caps.at(1).as_bytes(), 10),
-            "RECENT" => recent = int::parse_bytes(caps.at(1).as_bytes(), 10),
-            _ => println!("dont")
+            "EXISTS" => res.exists = int::parse_bytes(caps.at(1).as_bytes(), 10).unwrap(),
+            "RECENT" => res.recent = int::parse_bytes(caps.at(1).as_bytes(), 10).unwrap(),
+            _ => noop()
           }
         },
-        None => println!("haha!")
+        None => noop()
       }
 
       // parse uidvaildity/uidnext
@@ -231,20 +253,20 @@ impl IMAPResponse {
       match re2.captures(text) {
         Some(caps) => {
           match caps.at(1) {
-            "UIDVALIDITY" => println!("uid validity: {}", caps.at(2)),
-            "UIDNEXT"     => println!("uid next: {}", caps.at(2)),
-            _ => println!("dont")
+            "UIDVALIDITY" => res.uidvaildity = int::parse_bytes(caps.at(2).as_bytes(), 10).unwrap(),
+            "UIDNEXT"     => res.uidnext = int::parse_bytes(caps.at(2).as_bytes(), 10).unwrap(),
+            _ => noop()
           }
         },
-        None => println!("haha!")
+        None => noop()
       }
-
-      self.result = Some(IMAPFolder {
-        recent: recent,
-        exists: exists,
-      })
-
     }
+    self.result = Some(IMAPFolder {
+      recent: res.recent,
+      exists: res.exists,
+      uidvaildity: res.uidvaildity,
+      uidnext: res.uidnext,
+    })
   }
 }
 
