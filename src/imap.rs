@@ -8,7 +8,6 @@ extern crate openssl;
 extern crate collections;
 extern crate core;
 extern crate regex;
-extern crate std;
 
 #[phase(pluge)] extern crate regex_macros;
 
@@ -39,10 +38,10 @@ pub enum IMAPCommand {
 pub struct IMAPStream {
   pub host: &'static str,
   pub port: u16,
-  socket: Option<TcpStream>,
   pub connected: bool,
   pub authenticated: bool,
   tag: uint,
+  socket: Option<TcpStream>,
   last_command: IMAPCommand
 }
 
@@ -164,6 +163,13 @@ pub enum IMAPResult {
   }
 }
 
+struct Folder {
+  exists: int,
+  recent: int,
+  uidvaildity: int,
+  uidnext: int,
+}
+
 struct IMAPResponse {
   buffer: String,
   lines: Vec<IMAPLine>,
@@ -214,12 +220,7 @@ impl IMAPResponse {
 
   fn parse_select(&mut self) {
 
-    struct Folder {
-      exists: int,
-      recent: int,
-      uidvaildity: int,
-      uidnext: int,
-    }
+    
     let mut res = Folder { exists:0, recent:0, uidvaildity:0, uidnext:0 };
 
     for line in self.lines.iter() {
