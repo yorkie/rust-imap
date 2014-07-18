@@ -5,10 +5,10 @@ IMAP client for Rust
 
 ### Installation
 
-Add imap.rs via your `Cargo.toml`:
+Add rust-imap via your `Cargo.toml`:
 ```toml
 [dependencies.imap]
-git = "https://github.com/yorkie/imap.rs"
+git = "https://github.com/yorkie/rust-imap"
 ```
 
 ### Usage
