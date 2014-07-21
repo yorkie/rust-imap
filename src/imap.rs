@@ -411,7 +411,7 @@ fn read_response(stream: &mut TcpStream, cmd: IMAPCommand) -> Result<Box<IMAPRes
             bufs = Vec::new();
           }
         },
-        Err(e) => return Err(e),
+        Err(e) => return Err(e)
       }
     }
     tryClose = buf[0] == 0x0d;
