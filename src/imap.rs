@@ -354,7 +354,9 @@ impl IMAPResponse {
   }
 
   pub fn parse_fetch(&mut self) {
-    println!("{}", self.buffer);
+    for line in self.lines.iter() {
+      println!("{}", line.raw);
+    }
   }
 
 }
