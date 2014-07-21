@@ -40,6 +40,7 @@ pub struct IMAPStream {
   pub port: u16,
   pub connected: bool,
   pub authenticated: bool,
+  pub selected: bool,
   tag: uint,
   socket: Option<TcpStream>,
   last_command: IMAPCommand
@@ -58,6 +59,7 @@ impl IMAPStream {
       port: port,
       socket: None,
       connected: false,
+      selected: false,
       authenticated: false,
       tag: 1,
       last_command: Greeting,
@@ -128,6 +130,7 @@ impl IMAPStream {
             recent: recent,
             uidvaildity: uidvaildity,
             uidnext: uidnext } => {
+            self.selected = true;
             noop();
           },
           _ => fail!("error"),
@@ -155,12 +158,20 @@ impl IMAPStream {
             recent: recent,
             uidvaildity: uidvaildity,
             uidnext: uidnext } => {
+            self.selected = true;
             noop();
           },
           _ => fail!("error"),
         }
       },
       Err(e) => println!("error: {}", e)
+    }
+  }
+
+  // fetch
+  pub fn fetch(&mut self) {
+    if !self.authenticated {
+      fail!("")
     }
   }
 
@@ -236,6 +247,7 @@ impl IMAPResponse {
   fn parse(&mut self) {
     match self.lines.as_slice()[0].command {
       Greeting => self.parse_greeting(),
+      Login => self.parse_login(),
       Select => self.parse_select(),
       _ => println!("un impl -ed"),
     }
@@ -243,6 +255,11 @@ impl IMAPResponse {
 
   #[inline]
   fn parse_greeting(&mut self) {
+    self.result = Some(IMAPOk)
+  }
+
+  #[inline]
+  fn parse_login(&mut self) {
     self.result = Some(IMAPOk)
   }
 
