@@ -169,9 +169,28 @@ impl IMAPStream {
   }
 
   // fetch
-  pub fn fetch(&mut self) {
+  pub fn fetch_by_uid(&mut self, range: (int, int), fields_str: &str) {
     if !self.authenticated {
-      fail!("")
+      fail!("login/auth required");
+    }
+    if !self.selected {
+      fail!("select/examine required");
+    }
+
+    write!(self.socket.get_mut_ref(),
+      "x{} uid fetch {}\r\n", self.tag, fields_str);
+    self.tag += 1;
+    self.last_command = Fetch;
+    match read_response(self.socket.get_mut_ref(), self.last_command) {
+      Ok(res) => {
+        match res.result.unwrap() {
+          IMAPMessage {..} => {
+            noop();
+          },
+          _ => fail!("error")
+        }
+      },
+      Err(e) => println!("error: {}", e)
     }
   }
 
@@ -201,6 +220,12 @@ pub enum IMAPResult {
     exists: int,
     uidvaildity: int,
     uidnext: int,
+  },
+  IMAPMessage {
+    flags: Vec<String>,
+    size: int,
+    internal_date: String,
+    envelop: Envelop
   }
 }
 
@@ -209,6 +234,21 @@ struct Folder {
   recent: int,
   uidvaildity: int,
   uidnext: int,
+}
+
+struct Message {
+  flags: Vec<String>,
+  size: int,
+  internal_date: String,
+  envelop: Envelop
+}
+
+struct Envelop {
+  title: String,
+  date: String,
+  from: Vec<String>,
+  to: Vec<String>,
+  cc: Vec<String>,
 }
 
 struct IMAPResponse {
@@ -249,6 +289,7 @@ impl IMAPResponse {
       Greeting => self.parse_greeting(),
       Login => self.parse_login(),
       Select => self.parse_select(),
+      Fetch => self.parse_fetch(),
       _ => println!("un impl -ed"),
     }
   }
@@ -311,6 +352,11 @@ impl IMAPResponse {
       uidnext: res.uidnext,
     })
   }
+
+  pub fn parse_fetch(&mut self) {
+    println!("{}", self.buffer);
+  }
+
 }
 
 struct IMAPLine {
