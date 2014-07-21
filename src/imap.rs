@@ -221,10 +221,7 @@ impl IMAPResponse {
   }
 
   fn parse_select(&mut self) {
-
-    
     let mut res = Folder { exists:0, recent:0, uidvaildity:0, uidnext:0 };
-
     for line in self.lines.iter() {
       let text = str::from_utf8(line.raw.as_bytes()).unwrap();
       let re1;
