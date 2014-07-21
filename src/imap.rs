@@ -128,8 +128,34 @@ impl IMAPStream {
             recent: recent,
             uidvaildity: uidvaildity,
             uidnext: uidnext } => {
-            println!("exists:{}, recent:{}, uidvaildity:{}, uidnext:{}", 
-              exists, recent, uidvaildity, uidnext);
+            noop();
+          },
+          _ => fail!("error"),
+        }
+      },
+      Err(e) => println!("error: {}", e)
+    }
+  }
+
+  // examine
+  pub fn examine(&mut self, folder: &str) {
+    if !self.authenticated {
+      fail!("login()/auth() required");
+    }
+
+    write!(self.socket.get_mut_ref(),
+      "x{} examine {}\r\n", self.tag, folder);
+    self.tag += 1;
+    self.last_command = Select;
+    match read_response(self.socket.get_mut_ref(), self.last_command) {
+      Ok(res) => {
+        match res.result.unwrap() {
+          IMAPFolder {
+            exists: exists,
+            recent: recent,
+            uidvaildity: uidvaildity,
+            uidnext: uidnext } => {
+            noop();
           },
           _ => fail!("error"),
         }
