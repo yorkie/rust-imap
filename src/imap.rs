@@ -406,7 +406,7 @@ fn read_response(stream: &mut TcpStream, cmd: IMAPCommand) -> Result<Box<IMAPRes
           let line = IMAPLine::new(res, cmd);
           response.add_line(line);
           if response.completed {
-            return Ok(response);
+            Ok(response)
           } else {
             bufs = Vec::new();
           }
